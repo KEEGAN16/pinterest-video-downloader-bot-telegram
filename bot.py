@@ -148,7 +148,12 @@ def main():
     if not TOKEN:
         raise RuntimeError("BOT_TOKEN is missing from .env")
 
-    app = Application.builder().token(TOKEN).build()
+    app = (
+    Application.builder()
+    .token(TOKEN)
+    .concurrent_updates(2)
+    .build()
+)
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(
