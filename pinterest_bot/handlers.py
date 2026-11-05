@@ -133,21 +133,38 @@ async def process_video(message: Message, status: Message, url: str) -> None:
         await edit_status(status, "✅ Done! Your video is ready.")
 
     except VideoTooLargeError:
-        logger.warning("video_request_failed reason=too_large elapsed_seconds=%.2f", time.monotonic() - started)
+        logger.warning(
+            "video_request_failed reason=too_large elapsed_seconds=%.2f", time.monotonic() - started
+        )
         await edit_status(status, "❌ This video is too large (limit: 49 MB).")
     except MissingFFmpegError:
-        logger.error("video_request_failed reason=ffmpeg_unavailable elapsed_seconds=%.2f", time.monotonic() - started)
+        logger.error(
+            "video_request_failed reason=ffmpeg_unavailable elapsed_seconds=%.2f",
+            time.monotonic() - started,
+        )
         await edit_status(status, "❌ The bot is temporarily unable to process videos.")
     except (DownloadError, NoVideoError) as error:
-        logger.warning("video_request_failed reason=download error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
+        logger.warning(
+            "video_request_failed reason=download error_type=%s elapsed_seconds=%.2f",
+            type(error).__name__,
+            time.monotonic() - started,
+        )
         await edit_status(
             status,
             "❌ Couldn't download this pin. Check that it contains a public video, "
             "or try another link.",
         )
     except TelegramError as error:
-        logger.warning("video_request_failed reason=telegram error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
+        logger.warning(
+            "video_request_failed reason=telegram error_type=%s elapsed_seconds=%.2f",
+            type(error).__name__,
+            time.monotonic() - started,
+        )
         await edit_status(status, "❌ The video was downloaded, but Telegram could not receive it.")
     except Exception as error:
-        logger.error("video_request_failed reason=unexpected error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
+        logger.error(
+            "video_request_failed reason=unexpected error_type=%s elapsed_seconds=%.2f",
+            type(error).__name__,
+            time.monotonic() - started,
+        )
         await edit_status(status, "❌ Something went wrong. Please try again later.")

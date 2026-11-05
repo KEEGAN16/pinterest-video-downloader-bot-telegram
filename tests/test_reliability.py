@@ -20,8 +20,13 @@ def make_message():
 def test_log_formatter_redacts_bot_token():
     formatter = bot.TokenRedactingFormatter("secret-token-123")
     record = logging.LogRecord(
-        "httpx", logging.ERROR, "test.py", 1,
-        "HTTP request to /botsecret-token-123/getUpdates", (), None,
+        "httpx",
+        logging.ERROR,
+        "test.py",
+        1,
+        "HTTP request to /botsecret-token-123/getUpdates",
+        (),
+        None,
     )
     output = formatter.format(record)
     assert "secret-token-123" not in output

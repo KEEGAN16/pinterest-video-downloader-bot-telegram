@@ -61,9 +61,7 @@ def fake_ydl_that_creates_file(file_size):
         def extract_info(self, url, download=True):
             assert url == "https://pin.it/example"
             assert download is True
-            file_name = self.options["outtmpl"].replace("%(id)s", "123").replace(
-                "%(ext)s", "mp4"
-            )
+            file_name = self.options["outtmpl"].replace("%(id)s", "123").replace("%(ext)s", "mp4")
             Path(file_name).write_bytes(b"v" * file_size)
 
     return FakeYoutubeDL
