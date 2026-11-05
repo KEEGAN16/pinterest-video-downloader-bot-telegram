@@ -20,6 +20,8 @@ from telegram.ext import (
 )
 from yt_dlp.utils import DownloadError
 
+from rate_limit import DownloadLimiter
+
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -106,13 +108,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "4. Wait for the video to appear.\n\n"
         "Supported: public Pinterest video pins.\n"
         "Limit: approximately 49 MB per video.\n"
-        "Some pins may be unavailable or unsupported."
+        "Some pins may be unavailable or unsupported.\n"
+        "Please wait 30 seconds after each download before sending another."
     )
 
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(
-        "🤖 Pinterest Video Downloader v0.2.0\n"
+        "🤖 Pinterest Video Downloader v0.3.0\n"
         "Built with Python, python-telegram-bot, yt-dlp and FFmpeg.\n\n"
         f"Source code: {GITHUB_URL}\n\n"
         "Only download videos you have permission to save."
@@ -148,8 +151,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("❌ Please send a valid Pinterest video link. Try /help.")
         return
 
-    status = await message.reply_text("⏳ Downloading your video...")
+    # Admission is synchronous: no await between checking and reserving a slot.
+    user = update.effective_user
+    if user is None:
+        return
 
+    limiter: DownloadLimiter = context.application.bot_data["download_limiter"]
+    decision = limiter.try_start(user.id)
+    if not decision.allowed:
+        await message.reply_text(decision.message)
+        return
+
+    try:
+        status = await message.reply_text("⏳ Downloading your video...")
+        await process_video(message, status, url)
+    finally:
+        # Free the slot on success, error, or task cancellation.
+        limiter.finish(user.id)
+
+
+async def process_video(message, status, url: str) -> None:
     try:
         # A separate folder for every request avoids filename collisions.
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -190,8 +211,13 @@ def main() -> None:
         Application.builder()
         .token(TOKEN)
         .post_init(set_commands)
-        .concurrent_updates(2)
+        .concurrent_updates(8)  # Respond quickly while at most 2 downloads run.
         .build()
+    )
+
+    app.bot_data["download_limiter"] = DownloadLimiter(
+        max_concurrent=2,
+        cooldown_seconds=30,
     )
 
     app.add_handler(CommandHandler("start", start))
