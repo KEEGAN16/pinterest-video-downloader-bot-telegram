@@ -47,13 +47,7 @@ def configure_logging(token: str) -> None:
 
 def create_application(token: str) -> Application:
     """Wire handlers and the in-memory download limiter together."""
-    app = (
-        Application.builder()
-        .token(token)
-        .post_init(set_commands)
-        .concurrent_updates(8)
-        .build()
-    )
+    app = Application.builder().token(token).post_init(set_commands).concurrent_updates(8).build()
 
     app.bot_data["download_limiter"] = DownloadLimiter(
         max_concurrent=2,

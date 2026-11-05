@@ -68,7 +68,9 @@ def test_handle_message_releases_slot_when_processing_fails(monkeypatch):
     limiter = DownloadLimiter(max_concurrent=1, cooldown_seconds=0)
     update = SimpleNamespace(effective_message=message, effective_user=SimpleNamespace(id=42))
     context = SimpleNamespace(application=SimpleNamespace(bot_data={"download_limiter": limiter}))
-    monkeypatch.setattr(handlers, "process_video", AsyncMock(side_effect=RuntimeError("test failure")))
+    monkeypatch.setattr(
+        handlers, "process_video", AsyncMock(side_effect=RuntimeError("test failure"))
+    )
     with pytest.raises(RuntimeError, match="test failure"):
         asyncio.run(handlers.handle_message(update, context))
     assert limiter.try_start(42).allowed
