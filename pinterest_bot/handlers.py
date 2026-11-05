@@ -1,8 +1,9 @@
-"""Telegram commands and message handling."""
+"""Telegram commands and safe, privacy-conscious request logging."""
 
 import asyncio
 import logging
 import tempfile
+import time
 from pathlib import Path
 
 from telegram import BotCommand, Message, Update
@@ -11,7 +12,13 @@ from telegram.ext import Application, ContextTypes
 from yt_dlp.utils import DownloadError
 
 from .config import APP_VERSION, GITHUB_URL
-from .downloader import VideoTooLargeError, download_video, get_pinterest_url
+from .downloader import (
+    MissingFFmpegError,
+    NoVideoError,
+    VideoTooLargeError,
+    download_video,
+    get_pinterest_url,
+)
 from .rate_limit import DownloadLimiter
 
 logger = logging.getLogger(__name__)
@@ -59,12 +66,18 @@ async def set_commands(app: Application) -> None:
     )
 
 
+async def on_application_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log only the exception class; messages can contain private URLs/tokens."""
+    error = context.error
+    logger.error("unhandled_update_error error_type=%s", type(error).__name__)
+
+
 async def edit_status(status_message: Message, text: str) -> None:
     """Don't lose the original result if a status edit fails."""
     try:
         await status_message.edit_text(text)
     except TelegramError:
-        logger.warning("Could not edit status message", exc_info=True)
+        logger.warning("status_edit_failed")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -97,9 +110,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def process_video(message: Message, status: Message, url: str) -> None:
+    started = time.monotonic()
+    logger.info("video_request_started")
+
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             video_path = await asyncio.to_thread(download_video, url, Path(temp_dir))
+            size_bytes = video_path.stat().st_size
             await edit_status(status, "📤 Video downloaded! Uploading to Telegram...")
 
             with video_path.open("rb") as video_file:
@@ -108,20 +125,29 @@ async def process_video(message: Message, status: Message, url: str) -> None:
                 else:
                     await message.reply_document(document=video_file, write_timeout=120)
 
+        logger.info(
+            "video_request_succeeded elapsed_seconds=%.2f size_bytes=%d",
+            time.monotonic() - started,
+            size_bytes,
+        )
         await edit_status(status, "✅ Done! Your video is ready.")
 
     except VideoTooLargeError:
+        logger.warning("video_request_failed reason=too_large elapsed_seconds=%.2f", time.monotonic() - started)
         await edit_status(status, "❌ This video is too large (limit: 49 MB).")
-    except DownloadError:
-        logger.exception("Pinterest video download failed")
+    except MissingFFmpegError:
+        logger.error("video_request_failed reason=ffmpeg_unavailable elapsed_seconds=%.2f", time.monotonic() - started)
+        await edit_status(status, "❌ The bot is temporarily unable to process videos.")
+    except (DownloadError, NoVideoError) as error:
+        logger.warning("video_request_failed reason=download error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
         await edit_status(
             status,
             "❌ Couldn't download this pin. Check that it contains a public video, "
             "or try another link.",
         )
-    except TelegramError:
-        logger.exception("Telegram upload failed")
+    except TelegramError as error:
+        logger.warning("video_request_failed reason=telegram error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
         await edit_status(status, "❌ The video was downloaded, but Telegram could not receive it.")
-    except Exception:
-        logger.exception("Unexpected error while processing a video")
+    except Exception as error:
+        logger.error("video_request_failed reason=unexpected error_type=%s elapsed_seconds=%.2f", type(error).__name__, time.monotonic() - started)
         await edit_status(status, "❌ Something went wrong. Please try again later.")

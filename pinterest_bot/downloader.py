@@ -14,6 +14,27 @@ class VideoTooLargeError(Exception):
     """The completed video exceeds the configured Telegram upload limit."""
 
 
+class MissingFFmpegError(RuntimeError):
+    """FFmpeg or FFprobe is unavailable on the current machine."""
+
+
+class NoVideoError(RuntimeError):
+    """No usable video file was produced by the downloader."""
+
+
+class QuietYtDlpLogger:
+    """Avoid printing video URLs, request parameters or credentials to logs."""
+
+    def debug(self, message: str) -> None:
+        pass
+
+    def warning(self, message: str) -> None:
+        pass
+
+    def error(self, message: str) -> None:
+        pass
+
+
 def get_pinterest_url(text: str) -> str | None:
     """Return the first recognized Pinterest URL in a message, if any."""
     urls = re.findall(r"https?://[^\s<>]+", text)
@@ -31,9 +52,9 @@ def get_pinterest_url(text: str) -> str | None:
 
 
 def download_video(url: str, folder: Path) -> Path:
-    """Download a Pinterest video and merge audio/video via FFmpeg."""
+    """Download Pinterest video and merge audio/video via FFmpeg."""
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
-        raise RuntimeError("FFmpeg and FFprobe must be installed and available on PATH")
+        raise MissingFFmpegError("FFmpeg and FFprobe are required")
 
     options = {
         "outtmpl": str(folder / "%(id)s.%(ext)s"),
@@ -41,8 +62,12 @@ def download_video(url: str, folder: Path) -> Path:
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
+        "no_warnings": True,
+        "logger": QuietYtDlpLogger(),
         "max_filesize": MAX_FILE_SIZE,
-        "socket_timeout": 20,
+        "socket_timeout": 20,  # Inactivity timeout per connection, not a total download deadline.
+        "retries": 2,
+        "fragment_retries": 2,
     }
 
     with yt_dlp.YoutubeDL(options) as ydl:
@@ -54,7 +79,7 @@ def download_video(url: str, folder: Path) -> Path:
         if path.is_file() and path.suffix.lower() in (".mp4", ".webm", ".mkv", ".mov")
     ]
     if not videos:
-        raise RuntimeError("No video file was downloaded")
+        raise NoVideoError("No video was downloaded")
 
     video = max(videos, key=lambda path: path.stat().st_size)
     if video.stat().st_size > MAX_FILE_SIZE:
