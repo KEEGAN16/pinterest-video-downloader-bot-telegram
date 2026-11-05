@@ -2,7 +2,7 @@
 
 import pytest
 
-from rate_limit import DownloadLimiter
+from pinterest_bot.rate_limit import DownloadLimiter
 
 
 @pytest.fixture

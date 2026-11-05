@@ -1,10 +1,10 @@
-"""Offline unit tests for the v0.2 Pinterest bot (no Telegram calls)."""
+"""Offline unit tests for Pinterest downloading (no Telegram calls)."""
 
 from pathlib import Path
 
 import pytest
 
-import bot
+from pinterest_bot import downloader as bot
 
 
 @pytest.mark.parametrize(
