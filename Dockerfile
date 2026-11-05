@@ -14,7 +14,8 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY bot.py rate_limit.py ./
+COPY bot.py ./
+COPY pinterest_bot/ ./pinterest_bot/
 
 RUN useradd --create-home --uid 10001 botuser
 USER botuser
