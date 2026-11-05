@@ -1,0 +1,12 @@
+.env
+.venv/
+.git/
+.github/
+__pycache__/
+.pytest_cache/
+tests/
+*.pyc
+*.log
+*.mp4
+*.webm
+*.mkv
